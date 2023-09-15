@@ -4,12 +4,12 @@ mod state;
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Color32, Label, RichText, TextStyle};
+use egui::{Color32, Context, Label, RichText, TextStyle, TopBottomPanel};
 use egui_extras::{Column, TableBuilder};
 use globset::{Glob, GlobSetBuilder};
 
 use self::color::*;
-use self::components::constants;
+use self::components::constants::SEPARATOR_SPACING;
 use self::components::target_menu_item::TargetMenuItem;
 use self::state::LogsState;
 use crate::string::Ellipse;
@@ -28,7 +28,7 @@ impl Logs {
 }
 
 impl Logs {
-    pub fn ui(self, ui: &mut egui::Ui) {
+    pub fn ui(self, ctx: &Context, ui: &mut egui::Ui) {
         let state = ui.memory_mut(|mem| {
             let state_mem_id = ui.id();
             mem.data
@@ -54,11 +54,12 @@ impl Logs {
             .filter(|event| state.level_filter.get(event.level) && !glob.is_match(&event.target))
             .collect::<Vec<_>>();
 
-        let row_height = constants::SEPARATOR_SPACING
-            + ui.style().text_styles.get(&TextStyle::Small).unwrap().size;
+        let row_height =
+            SEPARATOR_SPACING + ui.style().text_styles.get(&TextStyle::Small).unwrap().size;
 
         TableBuilder::new(ui)
             .stick_to_bottom(true)
+            .auto_shrink([false, false])
             .column(Column::initial(100.).resizable(false))
             .column(Column::initial(80.).resizable(false))
             .column(Column::initial(120.).resizable(false))
@@ -147,8 +148,9 @@ impl Logs {
                         let message = event.fields.get("message").unwrap();
 
                         ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
-                        ui.add(Label::new(message).wrap(false))
+                        ui.add(Label::new(message.lines().collect::<String>()).wrap(false))
                             .on_hover_text(message);
+                        ui.set_clip_rect(ui.available_rect_before_wrap());
                     });
                 })
             });
