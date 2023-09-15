@@ -4,22 +4,17 @@ mod state;
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Color32, Label, Response, TextStyle, Widget};
-use globset::GlobSetBuilder;
+use egui::{Color32, Label, Response, RichText, TextStyle, Widget};
+use egui_extras::{Column, TableBuilder};
+use globset::{Glob, GlobSetBuilder};
 
-use self::color::ToColor32;
-use self::components::common::CommonProps;
+use self::color::*;
 use self::components::constants;
-use self::components::level_menu_button::LevelMenuButton;
-use self::components::table::Table;
-use self::components::table_cell::TableCell;
-use self::components::table_header::TableHeader;
-use self::components::target_menu_button::TargetMenuButton;
+use self::components::target_menu_item::TargetMenuItem;
 use self::state::LogsState;
 use crate::string::Ellipse;
 use crate::time::DateTimeFormatExt;
 use crate::tracing::collector::EventCollector;
-use crate::tracing::CollectedEvent;
 
 pub struct Logs {
     collector: EventCollector,
@@ -32,8 +27,8 @@ impl Logs {
     }
 }
 
-impl Widget for Logs {
-    fn ui(self, ui: &mut egui::Ui) -> Response {
+impl Logs {
+    pub fn ui(self, ui: &mut egui::Ui) {
         let state = ui.memory_mut(|mem| {
             let state_mem_id = ui.id();
             mem.data
@@ -62,73 +57,99 @@ impl Widget for Logs {
         let row_height = constants::SEPARATOR_SPACING
             + ui.style().text_styles.get(&TextStyle::Small).unwrap().size;
 
-        Table::default()
-            .on_clear(|| {
-                self.collector.clear();
+        TableBuilder::new(ui)
+            .column(Column::auto().resizable(true))
+            .column(Column::auto().resizable(true))
+            .column(Column::auto().resizable(true))
+            .column(Column::auto().resizable(true))
+            .header(row_height, |mut header| {
+                header.col(|ui| {
+                    ui.heading("Time");
+                });
+                header.col(|ui| {
+                    ui.menu_button("Level", |ui| {
+                        ui.label("Level Filter");
+                        ui.add(egui::Checkbox::new(
+                            &mut state.level_filter.trace,
+                            RichText::new("TRACE").color(TRACE_COLOR),
+                        ));
+                        ui.add(egui::Checkbox::new(
+                            &mut state.level_filter.debug,
+                            RichText::new("DEBUG").color(DEBUG_COLOR),
+                        ));
+                        ui.add(egui::Checkbox::new(
+                            &mut state.level_filter.info,
+                            RichText::new("INFO").color(INFO_COLOR),
+                        ));
+                        ui.add(egui::Checkbox::new(
+                            &mut state.level_filter.warn,
+                            RichText::new("WARN").color(WARN_COLOR),
+                        ));
+                        ui.add(egui::Checkbox::new(
+                            &mut state.level_filter.error,
+                            RichText::new("ERROR").color(ERROR_COLOR),
+                        ));
+                    });
+                });
+                header.col(|ui| {
+                    ui.menu_button("Target", |ui| {
+                        ui.label("Target Filter");
+
+                        let (input, add_button) = ui
+                            .horizontal(|ui| {
+                                let input = ui
+                                    .text_edit_singleline(&mut state.target_filter.input)
+                                    .on_hover_text("example: eframe::*");
+                                let button = ui.button("Add");
+                                (input, button)
+                            })
+                            .inner;
+
+                        if add_button.clicked()
+                            || (input.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                        {
+                            let target = Glob::new(&state.target_filter.input).unwrap();
+                            state.target_filter.targets.push(target);
+                            state.target_filter.input = "".to_owned();
+                        }
+
+                        for (i, target) in state.target_filter.targets.clone().iter().enumerate() {
+                            TargetMenuItem::default()
+                                .on_clicked(|| {
+                                    state.target_filter.targets.remove(i);
+                                })
+                                .target(target)
+                                .show(ui);
+                        }
+                    });
+                });
+                header.col(|ui| {
+                    ui.heading("Message");
+                });
             })
-            .header(|ui| {
-                TableHeader::default()
-                    .common_props(CommonProps::default().min_width(100.0))
-                    .children(|ui| {
-                        ui.label("Time");
-                    })
-                    .show(ui);
-                TableHeader::default()
-                    .common_props(CommonProps::default().min_width(80.0))
-                    .children(|ui| {
-                        LevelMenuButton::default()
-                            .state(&mut state.level_filter)
-                            .show(ui)
-                    })
-                    .show(ui);
-                TableHeader::default()
-                    .common_props(CommonProps::default().min_width(120.0))
-                    .children(|ui| {
-                        TargetMenuButton::default()
-                            .state(&mut state.target_filter)
-                            .show(ui)
-                    })
-                    .show(ui);
-                TableHeader::default()
-                    .common_props(CommonProps::default().min_width(120.0))
-                    .children(|ui| {
-                        ui.label("Message");
-                    })
-                    .show(ui);
-            })
-            .row_height(row_height)
-            .row(|ui, event: &CollectedEvent| {
-                TableCell::default()
-                    .common_props(CommonProps::default().min_width(100.0))
-                    .children(|ui| {
+            .body(|body| {
+                body.rows(row_height, filtered_events.len(), |row_index, mut row| {
+                    let event = filtered_events.get(row_index).unwrap();
+                    
+                    row.col(|ui| {
                         ui.colored_label(Color32::GRAY, event.time.format_short())
                             .on_hover_text(event.time.format_detailed());
-                    })
-                    .show(ui);
-                TableCell::default()
-                    .common_props(CommonProps::default().min_width(80.0))
-                    .children(|ui| {
+                    });
+                    row.col(|ui| {
                         ui.colored_label(event.level.to_color32(), event.level.as_str());
-                    })
-                    .show(ui);
-                TableCell::default()
-                    .common_props(CommonProps::default().min_width(120.0))
-                    .children(|ui| {
+                    });
+                    row.col(|ui| {
                         ui.colored_label(Color32::GRAY, event.target.truncate_graphemes(18))
                             .on_hover_text(&event.target);
-                    })
-                    .show(ui);
-                TableCell::default()
-                    .common_props(CommonProps::default().min_width(120.0))
-                    .children(|ui| {
+                    });
+                    row.col(|ui| {
                         let message = event.fields.get("message").unwrap();
 
                         ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
                         ui.add(Label::new(message).wrap(false))
                             .on_hover_text(message);
-                    })
-                    .show(ui);
-            })
-            .show(ui, filtered_events.iter())
+                    });
+                })
+            });
     }
 }
