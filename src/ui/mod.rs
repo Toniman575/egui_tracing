@@ -57,11 +57,14 @@ impl Logs {
         let row_height = constants::SEPARATOR_SPACING
             + ui.style().text_styles.get(&TextStyle::Small).unwrap().size;
 
+        
+
         TableBuilder::new(ui)
-            .column(Column::auto().resizable(true))
-            .column(Column::auto().resizable(true))
-            .column(Column::auto().resizable(true))
-            .column(Column::auto().resizable(true))
+            .stick_to_bottom(true)
+            .column(Column::initial(120.).resizable(false))
+            .column(Column::initial(80.).resizable(false))
+            .column(Column::initial(100.).resizable(false))
+            .column(Column::initial(120.).resizable(false))
             .header(row_height, |mut header| {
                 header.col(|ui| {
                     ui.heading("Time");
@@ -130,7 +133,7 @@ impl Logs {
             .body(|body| {
                 body.rows(row_height, filtered_events.len(), |row_index, mut row| {
                     let event = filtered_events.get(row_index).unwrap();
-                    
+
                     row.col(|ui| {
                         ui.colored_label(Color32::GRAY, event.time.format_short())
                             .on_hover_text(event.time.format_detailed());
