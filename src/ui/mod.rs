@@ -28,7 +28,7 @@ impl Logs {
 }
 
 impl Logs {
-    pub fn ui(self, ctx: &Context, ui: &mut egui::Ui) {
+    pub fn ui(self, ui: &mut egui::Ui) {
         let state = ui.memory_mut(|mem| {
             let state_mem_id = ui.id();
             mem.data
@@ -60,6 +60,7 @@ impl Logs {
         TableBuilder::new(ui)
             .stick_to_bottom(true)
             .auto_shrink([false, false])
+            .max_scroll_height(f32::INFINITY)
             .column(Column::initial(100.).resizable(false))
             .column(Column::initial(80.).resizable(false))
             .column(Column::initial(120.).resizable(false))
