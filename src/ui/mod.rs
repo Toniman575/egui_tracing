@@ -4,7 +4,7 @@ mod state;
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Color32, Label, Response, RichText, TextStyle, Widget};
+use egui::{Color32, Label, RichText, TextStyle};
 use egui_extras::{Column, TableBuilder};
 use globset::{Glob, GlobSetBuilder};
 
@@ -57,14 +57,12 @@ impl Logs {
         let row_height = constants::SEPARATOR_SPACING
             + ui.style().text_styles.get(&TextStyle::Small).unwrap().size;
 
-        
-
         TableBuilder::new(ui)
             .stick_to_bottom(true)
-            .column(Column::initial(120.).resizable(false))
-            .column(Column::initial(80.).resizable(false))
             .column(Column::initial(100.).resizable(false))
+            .column(Column::initial(80.).resizable(false))
             .column(Column::initial(120.).resizable(false))
+            .column(Column::remainder().resizable(false))
             .header(row_height, |mut header| {
                 header.col(|ui| {
                     ui.heading("Time");
