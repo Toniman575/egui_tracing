@@ -4,7 +4,7 @@ mod state;
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Color32, Context, Label, RichText, TextStyle, TopBottomPanel};
+use egui::{Align, Color32, Label, Layout, RichText, TextStyle};
 use egui_extras::{Column, TableBuilder};
 use globset::{Glob, GlobSetBuilder};
 
@@ -61,10 +61,10 @@ impl Logs {
             .stick_to_bottom(true)
             .auto_shrink([false, false])
             .max_scroll_height(f32::INFINITY)
-            .column(Column::initial(100.).resizable(false))
-            .column(Column::initial(80.).resizable(false))
-            .column(Column::initial(120.).resizable(false))
-            .column(Column::remainder().resizable(false))
+            .column(Column::initial(100.))
+            .column(Column::initial(80.))
+            .column(Column::initial(120.))
+            .column(Column::remainder())
             .header(row_height, |mut header| {
                 header.col(|ui| {
                     ui.heading("Time");
@@ -127,10 +127,35 @@ impl Logs {
                     });
                 });
                 header.col(|ui| {
-                    ui.heading("Message");
+                    ui.horizontal(|ui| {
+                        ui.heading("Message");
+
+                        ui.horizontal(|ui| {
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                if ui.add(egui::Button::new("To Bottom")).clicked() {
+                                    ui.scroll_to_rect(
+                                        egui::Rect {
+                                            min: egui::Pos2 { x: 0.0, y: 0.0 },
+                                            max: egui::Pos2 {
+                                                x: f32::MAX,
+                                                y: f32::MAX,
+                                            },
+                                        },
+                                        Some(egui::Align::Max),
+                                    );
+                                }
+
+                                if ui.add(egui::Button::new("Clear")).clicked() {
+                                    self.collector.clear();
+                                }
+                            });
+                        });
+                    });
                 });
             })
             .body(|body| {
+                let max_width = *body.widths().last().unwrap();
+                println!("{}", max_width);
                 body.rows(row_height, filtered_events.len(), |row_index, mut row| {
                     let event = filtered_events.get(row_index).unwrap();
 
@@ -147,11 +172,12 @@ impl Logs {
                     });
                     row.col(|ui| {
                         let message = event.fields.get("message").unwrap();
+                        ui.set_max_width(max_width);
 
                         ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
+
                         ui.add(Label::new(message.lines().collect::<String>()).wrap(false))
                             .on_hover_text(message);
-                        ui.set_clip_rect(ui.available_rect_before_wrap());
                     });
                 })
             });
