@@ -4,5 +4,5 @@ mod time;
 pub mod tracing;
 pub mod ui;
 
-pub use self::tracing::EventCollector;
+pub use self::tracing::EguiTracing;
 pub use self::ui::Logs;

@@ -4,31 +4,28 @@ mod state;
 use std::sync::{Arc, Mutex};
 
 use egui::text::LayoutJob;
-use egui::{Align, Color32, Label, Layout, RichText, TextFormat, TextStyle};
+use egui::{Align, Button, Color32, Label, Layout, Rect, RichText, TextFormat, TextStyle, Ui};
 use egui_extras::{Column, TableBuilder};
 use globset::{Glob, GlobSetBuilder};
 
 use self::color::*;
 use self::state::LogsState;
 use crate::time::DateTimeFormatExt;
-use crate::tracing::collector::EventCollector;
+use crate::tracing::EguiTracing;
 
-// https://github.com/emilk/egui/blob/9478e50d012c5138551c38cbee16b07bc1fcf283/crates/egui/src/widgets/separator.rs#L24C13-L24C20
-pub const SEPARATOR_SPACING: f32 = 6.0;
-
-pub struct Logs {
-    collector: EventCollector,
+pub struct Logs<'a> {
+    collector: &'a mut EguiTracing,
 }
 
-impl Logs {
+impl<'a> Logs<'a> {
     #[must_use]
-    pub const fn new(collector: EventCollector) -> Self {
+    pub fn new(collector: &'a mut EguiTracing) -> Self {
         Self { collector }
     }
 }
 
-impl Logs {
-    pub fn ui(self, ui: &mut egui::Ui) {
+impl Logs<'_> {
+    pub fn ui(self, ui: &mut Ui) {
         let state = ui.memory_mut(|mem| {
             let state_mem_id = ui.id();
             mem.data
@@ -50,10 +47,11 @@ impl Logs {
 
         let events = self.collector.events();
         let filtered_events = events
-            .iter()
             .filter(|event| state.level_filter.get(event.level) && !glob.is_match(&event.target))
             .collect::<Vec<_>>();
 
+        // https://github.com/emilk/egui/blob/9478e50d012c5138551c38cbee16b07bc1fcf283/crates/egui/src/widgets/separator.rs#L24C13-L24C20
+        const SEPARATOR_SPACING: f32 = 6.0;
         let row_height =
             SEPARATOR_SPACING + ui.style().text_styles.get(&TextStyle::Small).unwrap().size;
 
@@ -71,7 +69,7 @@ impl Logs {
                     ui.label("Time");
                 });
                 header.col(|ui| {
-                    ui.set_clip_rect(egui::Rect::EVERYTHING);
+                    ui.set_clip_rect(Rect::EVERYTHING);
                     ui.menu_button("Level", |ui| {
                         ui.label("Level Filter");
                         ui.add(egui::Checkbox::new(
@@ -148,26 +146,22 @@ impl Logs {
                 });
                 header.col(|ui| {
                     ui.horizontal_top(|ui| {
-                        ui.set_clip_rect(egui::Rect::EVERYTHING);
+                        ui.set_clip_rect(Rect::EVERYTHING);
                         ui.label("Message");
 
                         ui.horizontal_top(|ui| {
                             ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
-                                if ui.add(egui::Button::new("To Bottom")).clicked() {
+                                if ui.add(Button::new("To Bottom")).clicked() {
                                     ui.scroll_to_rect(
-                                        egui::Rect {
+                                        Rect {
                                             min: egui::Pos2 { x: 0.0, y: 0.0 },
                                             max: egui::Pos2 {
                                                 x: f32::MAX,
                                                 y: f32::MAX,
                                             },
                                         },
-                                        Some(egui::Align::Max),
+                                        Some(Align::Max),
                                     );
-                                }
-
-                                if ui.add(egui::Button::new("Clear")).clicked() {
-                                    self.collector.clear();
                                 }
                             });
                         });
@@ -205,10 +199,8 @@ impl Logs {
                         ui.label(job).on_hover_text(&event.target);
                     });
                     row.col(|ui| {
-                        let message = event.fields.get("message").unwrap();
-
                         let mut job = LayoutJob::single_section(
-                            message.clone(),
+                            event.message.clone(),
                             TextFormat {
                                 font_id: ui
                                     .style()
@@ -223,7 +215,7 @@ impl Logs {
                         job.wrap.max_rows = 1;
                         job.break_on_newline = false;
 
-                        ui.add(Label::new(job)).on_hover_text(message);
+                        ui.add(Label::new(job)).on_hover_text(&event.message);
                     });
                 })
             });

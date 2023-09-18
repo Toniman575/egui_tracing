@@ -1,11 +1,11 @@
-use egui_tracing::tracing::collector::EventCollector;
+use egui_tracing::tracing::EguiTracing;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 fn main() {
-    let collector = egui_tracing::EventCollector::default();
+    let collector = egui_tracing::EguiTracing::default();
     tracing_subscriber::registry()
-        .with(collector.clone())
+        .with(collector.layer())
         .init();
 
     let options = eframe::NativeOptions {
@@ -22,11 +22,11 @@ fn main() {
 }
 
 pub struct MyApp {
-    collector: EventCollector,
+    collector: EguiTracing,
 }
 
 impl MyApp {
-    fn new(collector: EventCollector) -> Self {
+    fn new(collector: EguiTracing) -> Self {
         Self { collector }
     }
 }
@@ -34,7 +34,7 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::Window::new("window").constrain(true).show(ctx, |ui| {
-            egui_tracing::Logs::new(self.collector.clone()).ui(ui);
+            egui_tracing::Logs::new(&mut self.collector).ui(ui);
         });
     }
 }

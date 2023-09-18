@@ -26,7 +26,7 @@ pub struct TargetFilter {
 impl Default for LevelFilter {
     fn default() -> Self {
         Self {
-            trace: true,
+            trace: false,
             debug: true,
             info: true,
             warn: true,
