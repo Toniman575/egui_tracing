@@ -1,20 +1,23 @@
 mod color;
-mod components;
 mod state;
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Align, Color32, Label, Layout, RichText, TextStyle};
+use egui::epaint::text::TextWrapping;
+use egui::text::LayoutJob;
+use egui::{Align, Color32, Label, Layout, RichText, TextFormat, TextStyle};
 use egui_extras::{Column, TableBuilder};
 use globset::{Glob, GlobSetBuilder};
+use itertools::Itertools;
 
 use self::color::*;
-use self::components::constants::SEPARATOR_SPACING;
-use self::components::target_menu_item::TargetMenuItem;
 use self::state::LogsState;
 use crate::string::Ellipse;
 use crate::time::DateTimeFormatExt;
 use crate::tracing::collector::EventCollector;
+
+// https://github.com/emilk/egui/blob/9478e50d012c5138551c38cbee16b07bc1fcf283/crates/egui/src/widgets/separator.rs#L24C13-L24C20
+pub const SEPARATOR_SPACING: f32 = 6.0;
 
 pub struct Logs {
     collector: EventCollector,
@@ -67,7 +70,7 @@ impl Logs {
             .column(Column::remainder().at_least(120.).clip(true))
             .header(row_height, |mut header| {
                 header.col(|ui| {
-                    ui.heading("Time");
+                    ui.label("Time");
                 });
                 header.col(|ui| {
                     ui.menu_button("Level", |ui| {
@@ -117,19 +120,28 @@ impl Logs {
                         }
 
                         for (i, target) in state.target_filter.targets.clone().iter().enumerate() {
-                            TargetMenuItem::default()
-                                .on_clicked(|| {
+                            ui.separator();
+                            let pattern = target.glob().to_owned();
+                            ui.horizontal(|ui| {
+                                let mut job = LayoutJob::single_section(
+                                    pattern.clone(),
+                                    TextFormat::default(),
+                                );
+                                job.wrap.max_rows = 1;
+
+                                ui.label(job).on_hover_text(pattern);
+                                ui.add_space(ui.available_width() - 43.0);
+                                if ui.button("Delete").clicked() {
                                     state.target_filter.targets.remove(i);
-                                })
-                                .target(target)
-                                .show(ui);
+                                }
+                            });
                         }
                     });
                 });
                 header.col(|ui| {
                     ui.horizontal(|ui| {
                         ui.set_clip_rect(egui::Rect::EVERYTHING);
-                        ui.heading("Message");
+                        ui.label("Message");
 
                         ui.horizontal_top(|ui| {
                             ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
@@ -166,16 +178,29 @@ impl Logs {
                         ui.colored_label(event.level.to_color32(), event.level.as_str());
                     });
                     row.col(|ui| {
-                        ui.colored_label(Color32::GRAY, event.target.truncate_graphemes(18))
-                            .on_hover_text(&event.target);
+                        let mut job = LayoutJob::single_section(
+                            event.target.clone(),
+                            TextFormat {
+                                color: Color32::GRAY,
+                                ..Default::default()
+                            },
+                        );
+                        job.wrap.max_rows = 1;
+
+                        ui.label(job).on_hover_text(&event.target);
                     });
                     row.col(|ui| {
                         let message = event.fields.get("message").unwrap();
 
                         ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
 
-                        ui.add(Label::new(message.lines().collect::<String>()).wrap(false))
-                            .on_hover_text(message);
+                        ui.add(
+                            Label::new(
+                                Itertools::intersperse(message.lines(), " ").collect::<String>(),
+                            )
+                            .wrap(false),
+                        )
+                        .on_hover_text(message);
                     });
                 })
             });
