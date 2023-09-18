@@ -3,16 +3,13 @@ mod state;
 
 use std::sync::{Arc, Mutex};
 
-use egui::epaint::text::TextWrapping;
 use egui::text::LayoutJob;
 use egui::{Align, Color32, Label, Layout, RichText, TextFormat, TextStyle};
 use egui_extras::{Column, TableBuilder};
 use globset::{Glob, GlobSetBuilder};
-use itertools::Itertools;
 
 use self::color::*;
 use self::state::LogsState;
-use crate::string::Ellipse;
 use crate::time::DateTimeFormatExt;
 use crate::tracing::collector::EventCollector;
 
@@ -61,18 +58,20 @@ impl Logs {
             SEPARATOR_SPACING + ui.style().text_styles.get(&TextStyle::Small).unwrap().size;
 
         TableBuilder::new(ui)
+            .striped(true)
             .stick_to_bottom(true)
             .auto_shrink([false, false])
             .max_scroll_height(f32::INFINITY)
-            .column(Column::initial(100.))
-            .column(Column::initial(80.))
-            .column(Column::initial(120.))
-            .column(Column::remainder().at_least(120.).clip(true))
+            .column(Column::exact(72.1))
+            .column(Column::exact(40.))
+            .column(Column::initial(120.).at_least(50.).resizable(true))
+            .column(Column::remainder().at_least(200.).clip(true))
             .header(row_height, |mut header| {
                 header.col(|ui| {
                     ui.label("Time");
                 });
                 header.col(|ui| {
+                    ui.set_clip_rect(egui::Rect::EVERYTHING);
                     ui.menu_button("Level", |ui| {
                         ui.label("Level Filter");
                         ui.add(egui::Checkbox::new(
@@ -125,21 +124,30 @@ impl Logs {
                             ui.horizontal(|ui| {
                                 let mut job = LayoutJob::single_section(
                                     pattern.clone(),
-                                    TextFormat::default(),
+                                    TextFormat {
+                                        font_id: ui
+                                            .style()
+                                            .text_styles
+                                            .get(&TextStyle::Body)
+                                            .unwrap()
+                                            .clone(),
+                                        ..Default::default()
+                                    },
                                 );
                                 job.wrap.max_rows = 1;
 
-                                ui.label(job).on_hover_text(pattern);
-                                ui.add_space(ui.available_width() - 43.0);
-                                if ui.button("Delete").clicked() {
-                                    state.target_filter.targets.remove(i);
-                                }
+                                ui.with_layout(Layout::default().with_main_wrap(true), |ui| {
+                                    ui.label(job).on_hover_text(pattern);
+                                    if ui.button("Delete").clicked() {
+                                        state.target_filter.targets.remove(i);
+                                    }
+                                });
                             });
                         }
                     });
                 });
                 header.col(|ui| {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_top(|ui| {
                         ui.set_clip_rect(egui::Rect::EVERYTHING);
                         ui.label("Message");
 
@@ -175,12 +183,19 @@ impl Logs {
                             .on_hover_text(event.time.format_detailed());
                     });
                     row.col(|ui| {
+                        ui.style_mut().wrap = Some(false);
                         ui.colored_label(event.level.to_color32(), event.level.as_str());
                     });
                     row.col(|ui| {
                         let mut job = LayoutJob::single_section(
                             event.target.clone(),
                             TextFormat {
+                                font_id: ui
+                                    .style()
+                                    .text_styles
+                                    .get(&TextStyle::Body)
+                                    .unwrap()
+                                    .clone(),
                                 color: Color32::GRAY,
                                 ..Default::default()
                             },
@@ -192,15 +207,23 @@ impl Logs {
                     row.col(|ui| {
                         let message = event.fields.get("message").unwrap();
 
-                        ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
+                        let mut job = LayoutJob::single_section(
+                            message.clone(),
+                            TextFormat {
+                                font_id: ui
+                                    .style()
+                                    .text_styles
+                                    .get(&TextStyle::Body)
+                                    .unwrap()
+                                    .clone(),
+                                color: Color32::WHITE,
+                                ..Default::default()
+                            },
+                        );
+                        job.wrap.max_rows = 1;
+                        job.break_on_newline = false;
 
-                        ui.add(
-                            Label::new(
-                                Itertools::intersperse(message.lines(), " ").collect::<String>(),
-                            )
-                            .wrap(false),
-                        )
-                        .on_hover_text(message);
+                        ui.add(Label::new(job)).on_hover_text(message);
                     });
                 })
             });

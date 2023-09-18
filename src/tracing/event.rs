@@ -3,12 +3,12 @@ use std::fmt::Debug;
 
 use chrono::{DateTime, Local};
 use tracing::field::{Field, Visit};
-use tracing::{Event, Level, Metadata};
+use tracing::{Event, Metadata, Level};
 
 #[derive(Debug, Clone)]
 pub struct CollectedEvent {
     pub target: String,
-    pub level: tracing::Level,
+    pub level: Level,
     pub fields: BTreeMap<String, String>,
     pub time: DateTime<Local>,
 }
