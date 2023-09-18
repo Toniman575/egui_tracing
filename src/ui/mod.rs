@@ -64,7 +64,7 @@ impl Logs {
             .column(Column::initial(100.))
             .column(Column::initial(80.))
             .column(Column::initial(120.))
-            .column(Column::remainder())
+            .column(Column::remainder().at_least(120.).clip(true))
             .header(row_height, |mut header| {
                 header.col(|ui| {
                     ui.heading("Time");
@@ -128,10 +128,11 @@ impl Logs {
                 });
                 header.col(|ui| {
                     ui.horizontal(|ui| {
+                        ui.set_clip_rect(egui::Rect::EVERYTHING);
                         ui.heading("Message");
 
-                        ui.horizontal(|ui| {
-                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.horizontal_top(|ui| {
+                            ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
                                 if ui.add(egui::Button::new("To Bottom")).clicked() {
                                     ui.scroll_to_rect(
                                         egui::Rect {
@@ -154,8 +155,6 @@ impl Logs {
                 });
             })
             .body(|body| {
-                let max_width = *body.widths().last().unwrap();
-                println!("{}", max_width);
                 body.rows(row_height, filtered_events.len(), |row_index, mut row| {
                     let event = filtered_events.get(row_index).unwrap();
 
@@ -172,7 +171,6 @@ impl Logs {
                     });
                     row.col(|ui| {
                         let message = event.fields.get("message").unwrap();
-                        ui.set_max_width(max_width);
 
                         ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
 
