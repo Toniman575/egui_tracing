@@ -1,4 +1,4 @@
-use egui_tracing::tracing::EguiTracing;
+use egui_tracing::EguiTracing;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -34,7 +34,7 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::Window::new("window").constrain(true).show(ctx, |ui| {
-            egui_tracing::Logs::new(&mut self.collector).ui(ui);
+            self.collector.ui(ui);
         });
     }
 }

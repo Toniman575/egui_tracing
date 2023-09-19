@@ -1,54 +1,30 @@
-mod color;
-mod state;
-
 use std::sync::{Arc, Mutex};
 
 use egui::text::LayoutJob;
 use egui::{Align, Button, Color32, Label, Layout, Rect, RichText, TextFormat, TextStyle, Ui};
 use egui_extras::{Column, TableBuilder};
-use globset::{Glob, GlobSetBuilder};
+use globset::{Error, Glob};
+use ringbuffer::RingBuffer;
+use tracing::Level;
 
-use self::color::*;
-use self::state::LogsState;
 use crate::time::DateTimeFormatExt;
-use crate::tracing::EguiTracing;
+use crate::{EguiTracing, State};
 
-pub struct Logs<'a> {
-    collector: &'a mut EguiTracing,
-}
+impl EguiTracing {
+    pub fn ui(&mut self, ui: &mut Ui) {
+        let id = ui.id();
 
-impl<'a> Logs<'a> {
-    #[must_use]
-    pub fn new(collector: &'a mut EguiTracing) -> Self {
-        Self { collector }
-    }
-}
-
-impl Logs<'_> {
-    pub fn ui(self, ui: &mut Ui) {
-        let state = ui.memory_mut(|mem| {
-            let state_mem_id = ui.id();
-            mem.data
-                .get_temp_mut_or_insert_with(state_mem_id, || {
-                    Arc::new(Mutex::new(LogsState::default()))
-                })
+        let state = ui.memory_mut(|memory| {
+            memory
+                .data
+                .get_persisted_mut_or_default::<Arc<Mutex<State>>>(id)
                 .clone()
         });
         let mut state = state.lock().unwrap();
 
-        // TODO: cache the globset
-        let glob = {
-            let mut glob = GlobSetBuilder::new();
-            for target in state.target_filter.targets.clone() {
-                glob.add(target);
-            }
-            glob.build().unwrap()
-        };
-
-        let events = self.collector.events();
-        let filtered_events = events
-            .filter(|event| state.level_filter.get(event.level) && !glob.is_match(&event.target))
-            .collect::<Vec<_>>();
+        if self.globset.is_none() {
+            self.update_globset(&state.target_filter);
+        }
 
         // https://github.com/emilk/egui/blob/9478e50d012c5138551c38cbee16b07bc1fcf283/crates/egui/src/widgets/separator.rs#L24C13-L24C20
         const SEPARATOR_SPACING: f32 = 6.0;
@@ -111,9 +87,25 @@ impl Logs<'_> {
                         if add_button.clicked()
                             || (input.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
                         {
-                            let target = Glob::new(&state.target_filter.input).unwrap();
-                            state.target_filter.targets.push(target);
-                            state.target_filter.input = "".to_owned();
+                            match Glob::new(&state.target_filter.input) {
+                                Ok(target) => {
+                                    state.target_filter.targets.push(target);
+                                    state.target_filter.input = "".to_owned();
+                                    self.update_globset(&state.target_filter);
+                                    ui.memory_mut(|memory| {
+                                        memory.data.remove::<Arc<Error>>(id);
+                                    });
+                                }
+                                Err(error) => ui.memory_mut(|memory| {
+                                    memory.data.insert_temp(id, Arc::new(error));
+                                }),
+                            }
+                        }
+
+                        if let Some(error) =
+                            ui.memory(|memory| memory.data.get_temp::<Arc<Error>>(id))
+                        {
+                            ui.colored_label(Color32::RED, error.to_string());
                         }
 
                         for (i, target) in state.target_filter.targets.clone().iter().enumerate() {
@@ -138,6 +130,7 @@ impl Logs<'_> {
                                     ui.label(job).on_hover_text(pattern);
                                     if ui.button("Delete").clicked() {
                                         state.target_filter.targets.remove(i);
+                                        self.update_globset(&state.target_filter);
                                     }
                                 });
                             });
@@ -169,8 +162,23 @@ impl Logs<'_> {
                 });
             })
             .body(|body| {
+                self.fetch_events();
+
+                let filtered_events = self
+                    .events
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, event)| {
+                        (state.level_filter.matches(event.level)
+                            && (self.globset.as_ref().unwrap().is_empty()
+                                || self.globset.as_ref().unwrap().is_match(&event.target)))
+                        .then_some(index)
+                    })
+                    .collect::<Vec<_>>();
+
                 body.rows(row_height, filtered_events.len(), |row_index, mut row| {
-                    let event = filtered_events.get(row_index).unwrap();
+                    let index = *filtered_events.get(row_index).unwrap();
+                    let event = self.events.get(index).unwrap();
 
                     row.col(|ui| {
                         ui.colored_label(Color32::GRAY, event.time.format_short())
@@ -219,5 +227,27 @@ impl Logs<'_> {
                     });
                 })
             });
+    }
+}
+
+const TRACE_COLOR: Color32 = Color32::from_rgb(117, 80, 123);
+const DEBUG_COLOR: Color32 = Color32::from_rgb(114, 159, 207);
+const INFO_COLOR: Color32 = Color32::from_rgb(78, 154, 6);
+const WARN_COLOR: Color32 = Color32::from_rgb(196, 160, 0);
+const ERROR_COLOR: Color32 = Color32::from_rgb(204, 0, 0);
+
+pub trait ToColor32 {
+    fn to_color32(self) -> Color32;
+}
+
+impl ToColor32 for Level {
+    fn to_color32(self) -> Color32 {
+        match self {
+            Self::TRACE => TRACE_COLOR,
+            Self::DEBUG => DEBUG_COLOR,
+            Self::INFO => INFO_COLOR,
+            Self::WARN => WARN_COLOR,
+            Self::ERROR => ERROR_COLOR,
+        }
     }
 }
