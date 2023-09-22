@@ -12,10 +12,8 @@ categories = ["gui", "game-development"]
 [features]
 default = ["log"]
 log = ["tracing-log", "tracing-subscriber/tracing-log"]
-wasmbind = ["chrono/wasmbind"]
 
 [dependencies]
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
 crossbeam-queue = "0.3"
 egui = "0.22"
 egui_extras = "0.22"

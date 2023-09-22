@@ -5,39 +5,57 @@ mod time;
 mod ui;
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use crossbeam_queue::ArrayQueue;
 pub use globset;
 use globset::{Glob, GlobSet, GlobSetBuilder};
+use layer::Inner;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde::{Deserialize, Serialize};
 use tracing::Level;
 
 use self::layer::CollectedEvent;
 pub use self::layer::EguiTracingLayer;
+pub use self::time::{InstantOutput, Timer};
 
-#[derive(Debug)]
-pub struct EguiTracing {
-    queue: Arc<ArrayQueue<CollectedEvent>>,
-    events: AllocRingBuffer<CollectedEvent>,
+pub struct EguiTracing<T: Timer = Instant> {
+    inner: Arc<Inner<T>>,
+    events: AllocRingBuffer<CollectedEvent<T>>,
     globset: Option<GlobSet>,
 }
 
 impl EguiTracing {
     pub fn new(capacity: usize) -> Self {
         Self {
-            queue: Arc::new(ArrayQueue::new(capacity)),
+            inner: Arc::new(Inner {
+                queue: ArrayQueue::new(capacity),
+                timer: Instant::now(),
+            }),
+            events: AllocRingBuffer::new(capacity),
+            globset: None,
+        }
+    }
+}
+
+impl<T: Timer> EguiTracing<T> {
+    pub fn new_with_timer(capacity: usize, timer: T) -> Self {
+        Self {
+            inner: Arc::new(Inner {
+                queue: ArrayQueue::new(capacity),
+                timer,
+            }),
             events: AllocRingBuffer::new(capacity),
             globset: None,
         }
     }
 
-    pub fn layer(&self) -> EguiTracingLayer {
-        EguiTracingLayer::new(Arc::clone(&self.queue))
+    pub fn layer(&self) -> EguiTracingLayer<T> {
+        EguiTracingLayer::new(Arc::clone(&self.inner))
     }
 
     fn fetch_events(&mut self) {
-        while let Some(event) = self.queue.pop() {
+        while let Some(event) = self.inner.queue.pop() {
             self.events.push(event);
         }
     }
@@ -100,6 +118,7 @@ impl LevelFilter {
 
 #[derive(Clone, Debug, Default, Deserialize, Hash, Serialize)]
 pub struct TargetFilter {
+    // TODO: This probably doesn't belong in `State`.
     pub input: String,
     pub targets: Vec<Glob>,
 }

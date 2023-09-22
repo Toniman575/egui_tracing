@@ -7,10 +7,9 @@ use globset::{Error, Glob};
 use ringbuffer::RingBuffer;
 use tracing::Level;
 
-use crate::time::DateTimeFormatExt;
-use crate::{EguiTracing, State};
+use crate::{EguiTracing, State, Timer};
 
-impl EguiTracing {
+impl<T: Timer> EguiTracing<T> {
     pub fn ui(&mut self, ui: &mut Ui) {
         let id = ui.id();
 
@@ -36,7 +35,7 @@ impl EguiTracing {
             .stick_to_bottom(true)
             .auto_shrink([false, false])
             .max_scroll_height(f32::INFINITY)
-            .column(Column::exact(72.1))
+            .column(Column::auto())
             .column(Column::exact(40.))
             .column(Column::initial(120.).at_least(50.).resizable(true))
             .column(Column::remainder().at_least(200.).clip(true))
@@ -105,6 +104,8 @@ impl EguiTracing {
                         if let Some(error) =
                             ui.memory(|memory| memory.data.get_temp::<Arc<Error>>(id))
                         {
+                            // TODO: Maybe add a seperator here.
+                            // TODO: Maybe replace with tooltip.
                             ui.colored_label(Color32::RED, error.to_string());
                         }
 
@@ -127,6 +128,7 @@ impl EguiTracing {
                                 job.wrap.max_rows = 1;
 
                                 ui.with_layout(Layout::default().with_main_wrap(true), |ui| {
+                                    // TODO: Fix that the "delete" button keeps expanding the layout.
                                     ui.label(job).on_hover_text(pattern);
                                     if ui.button("Delete").clicked() {
                                         state.target_filter.targets.remove(i);
@@ -181,8 +183,10 @@ impl EguiTracing {
                     let event = self.events.get(index).unwrap();
 
                     row.col(|ui| {
-                        ui.colored_label(Color32::GRAY, event.time.format_short())
-                            .on_hover_text(event.time.format_detailed());
+                        ui.add(
+                            Label::new(RichText::new(event.time.to_string()).color(Color32::GRAY))
+                                .wrap(false),
+                        );
                     });
                     row.col(|ui| {
                         ui.style_mut().wrap = Some(false);

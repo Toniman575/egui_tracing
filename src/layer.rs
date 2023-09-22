@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use chrono::{DateTime, Local};
 use crossbeam_queue::ArrayQueue;
 use tracing::field::{Field, Visit};
 use tracing::{Event, Level, Metadata, Subscriber};
@@ -11,17 +10,22 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
 
-pub struct EguiTracingLayer {
-    queue: Arc<ArrayQueue<CollectedEvent>>,
+use crate::Timer;
+
+pub struct EguiTracingLayer<T: Timer>(Arc<Inner<T>>);
+
+pub struct Inner<T: Timer> {
+    pub queue: ArrayQueue<CollectedEvent<T>>,
+    pub timer: T,
 }
 
-impl EguiTracingLayer {
-    pub(crate) fn new(queue: Arc<ArrayQueue<CollectedEvent>>) -> Self {
-        Self { queue }
+impl<T: Timer> EguiTracingLayer<T> {
+    pub(crate) fn new(inner: Arc<Inner<T>>) -> Self {
+        Self(inner)
     }
 }
 
-impl<S> Layer<S> for EguiTracingLayer
+impl<S, T: 'static + Timer> Layer<S> for EguiTracingLayer<T>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
@@ -33,28 +37,28 @@ where
         #[cfg(not(feature = "log"))]
         let meta = event.metadata();
 
-        if let Some(event) = CollectedEvent::new(event, meta) {
-            self.queue.force_push(event);
+        if let Some(event) = CollectedEvent::new(event, meta, self.0.timer.time()) {
+            self.0.queue.force_push(event);
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct CollectedEvent {
+pub struct CollectedEvent<T: Timer> {
     pub target: String,
     pub level: Level,
     pub message: String,
-    pub time: DateTime<Local>,
+    pub time: T::Time,
 }
 
-impl CollectedEvent {
-    pub fn new(event: &Event, meta: &Metadata) -> Option<Self> {
+impl<T: Timer> CollectedEvent<T> {
+    pub fn new(event: &Event, meta: &Metadata, time: T::Time) -> Option<Self> {
         let mut message = MessageVisitor(None);
         event.record(&mut message);
 
         message.0.map(|message| CollectedEvent {
             level: meta.level().to_owned(),
-            time: Local::now(),
+            time,
             target: meta.target().to_owned(),
             message,
         })
