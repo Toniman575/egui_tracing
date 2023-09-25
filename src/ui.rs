@@ -7,9 +7,10 @@ use globset::{Error, Glob};
 use ringbuffer::RingBuffer;
 use tracing::Level;
 
-use crate::{EguiTracing, State, Timer};
+use crate::time::DurationExt;
+use crate::{EguiTracing, State};
 
-impl<T: Timer> EguiTracing<T> {
+impl EguiTracing {
     pub fn ui(&mut self, ui: &mut Ui) {
         let id = ui.id();
 
@@ -164,7 +165,7 @@ impl<T: Timer> EguiTracing<T> {
                 });
             })
             .body(|body| {
-                self.fetch_events();
+                self.fetch_tracings();
 
                 let filtered_events = self
                     .events
@@ -184,8 +185,10 @@ impl<T: Timer> EguiTracing<T> {
 
                     row.col(|ui| {
                         ui.add(
-                            Label::new(RichText::new(event.time.to_string()).color(Color32::GRAY))
-                                .wrap(false),
+                            Label::new(
+                                RichText::new(event.time.display_ext()).color(Color32::GRAY),
+                            )
+                            .wrap(false),
                         );
                     });
                     row.col(|ui| {

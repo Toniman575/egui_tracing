@@ -1,35 +1,19 @@
-use std::fmt::{self, Display, Formatter};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-pub trait Timer {
-    type Time: Display;
-
-    fn time(&self) -> Self::Time;
+pub trait DurationExt {
+    fn display_ext(&self) -> String;
 }
 
-pub struct InstantOutput(Duration);
-
-impl Display for InstantOutput {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let minutes = self.0.as_secs() / 60;
+impl DurationExt for Duration {
+    fn display_ext(&self) -> String {
+        let minutes = self.as_secs() / 60;
         let hour = minutes / 60;
         let minute = minutes % 60;
-        let second = self.0.as_secs() % 60;
-        let milli = self.0.subsec_millis();
-        let micro = self.0.subsec_micros() % 1_000;
-        let nano = self.0.subsec_nanos() % 1_000;
+        let second = self.as_secs() % 60;
+        let milli = self.subsec_millis();
+        let micro = self.subsec_micros() % 1_000;
+        let nano = self.subsec_nanos() % 1_000;
 
-        write!(
-            f,
-            "{hour:02}:{minute:02}:{second:02}:{milli:03}.{micro:03}.{nano:03}",
-        )
-    }
-}
-
-impl Timer for Instant {
-    type Time = InstantOutput;
-
-    fn time(&self) -> Self::Time {
-        InstantOutput(self.elapsed())
+        format!("{hour:02}:{minute:02}:{second:02}:{milli:03}.{micro:03}.{nano:03}",)
     }
 }

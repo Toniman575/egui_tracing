@@ -18,6 +18,7 @@ crossbeam-queue = "0.3"
 egui = "0.22"
 egui_extras = "0.22"
 globset = { version = "0.4", features = ["serde1"] }
+hashbrown = "0.14"
 ringbuffer = "0.15"
 serde = { version = "1", default-features = false, features = ["derive"] }
 tracing = { version = "0.1", default-features = false }
