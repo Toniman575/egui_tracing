@@ -24,6 +24,7 @@ struct Span {
     target: String,
     level: Level,
     start: Option<Instant>,
+    parent: Option<Id>,
 }
 
 #[derive(Debug)]
@@ -31,14 +32,16 @@ struct FinishedSpan {
     name: String,
     target: String,
     level: Level,
+    start: Duration,
     duration: Duration,
+    parent: Option<Id>,
 }
 
 pub struct EguiTracing {
     inner: Arc<Inner>,
     events: AllocRingBuffer<CollectedEvent>,
     spans: HashMap<Id, Span>,
-    finished_spans: HashMap<Duration, FinishedSpan>,
+    finished_spans: HashMap<Id, FinishedSpan>,
     globset: Option<GlobSet>,
 }
 
@@ -89,6 +92,7 @@ impl EguiTracing {
                             target: new_span.target,
                             level: new_span.level,
                             start: None,
+                            parent: new_span.parent,
                         },
                     );
                 }
@@ -110,12 +114,14 @@ impl EguiTracing {
                         .expect("Span was exitted without entering it");
 
                     self.finished_spans.insert(
-                        start.duration_since(self.inner.timer),
+                        exit_span.id,
                         FinishedSpan {
                             name: span.name.clone(),
                             target: span.target.clone(),
                             level: span.level,
+                            start: start.duration_since(self.inner.timer),
                             duration: exit_span.time.duration_since(*start),
+                            parent: span.parent.clone(),
                         },
                     );
                 }

@@ -92,17 +92,20 @@ pub struct NewSpan {
     pub name: String,
     pub target: String,
     pub level: Level,
+    pub parent: Option<Id>,
 }
 
 impl NewSpan {
     pub fn new(attributes: &Attributes<'_>, id: Id) -> Self {
         let metadata = attributes.metadata();
+        let parent = attributes.parent();
 
         Self {
             id,
             name: metadata.name().to_owned(),
             target: metadata.target().to_owned(),
             level: metadata.level().to_owned(),
+            parent: parent.cloned(),
         }
     }
 }

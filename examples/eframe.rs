@@ -1,5 +1,4 @@
 use egui_tracing::EguiTracing;
-use tracing::{span, Level};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -8,10 +7,6 @@ fn main() {
     tracing_subscriber::registry()
         .with(collector.layer())
         .init();
-
-    let span = span!(Level::INFO, "my_span").entered();
-
-    span.exit();
 
     let options = eframe::NativeOptions {
         resizable: true,
